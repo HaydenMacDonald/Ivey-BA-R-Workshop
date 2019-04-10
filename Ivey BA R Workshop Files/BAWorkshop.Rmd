@@ -1,0 +1,175 @@
+---
+title: "Ivey BA R Workshop"
+subtitle: "Introduction to the Tidyverse"
+author: "Hayden MacDonald"
+date: "`r Sys.Date()`"
+output: 
+  hmdrmd::tidy_analysis
+mainfont: CMU Serif Roman
+monofont: Fira Code Medium
+---
+
+## Packages
+
+```{r packages, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(readxl)
+library(GGally)
+library(naniar)
+library(broom)
+```
+
+---
+
+## Import
+
+```{r import, message = FALSE}
+pain <- read_xlsx("CroqPainData_Feb14.xlsx", 
+                  sheet = 1, 
+                  range = "A1:Q73")
+```
+
+---
+
+## Power Example
+
+```{r}
+hist_fun = function(x) {
+     ggplot(pain_ex, aes_string(x = x) ) +
+          geom_histogram()
+}
+```
+
+```{r}
+pain_ex <- pain %>%
+  mutate(EMPL = as.numeric(EMPL))
+
+pain_vars <- names(pain_ex)[2:17]
+
+pain_hists <- map(pain_vars, hist_fun)
+```
+
+---
+
+\pagebreak
+
+## Transform
+
+### Problematic Rows
+```{r}
+pain[c(51,62),]
+```
+
+### Clean Data
+```{r}
+pain <- pain %>%
+  filter(rownames(pain) != c(51,62)) %>%
+  mutate(STOR = as.numeric(STOR),
+         EMPL = as.numeric(EMPL)) %>%
+  mutate(STOR = seq(1, 70, by = 1))
+
+pain
+```
+
+\pagebreak
+
+### Imputation & Visualizing Missingness
+
+```{r, dpi = 300}
+vis_miss(pain)
+```
+
+\pagebreak
+
+```{r, dpi = 300}
+pain <- pain %>%
+  impute_mean_all()
+
+vis_miss(pain)
+```
+
+\pagebreak
+
+### Create new variables
+
+```{r}
+pain <- pain %>%
+          mutate(PR = EARN / K,
+                 Target = case_when(PR >= 0.26 ~ 1, PR < 0.26 ~ 0))
+```
+
+---
+
+## Visualize
+
+```{r visualize, dpi = 300}
+ggcorr(pain, label = TRUE, hjust = 1)
+```
+
+---
+
+\pagebreak
+
+## Training and Testing Sets
+
+```{r}
+pain_train <- pain %>%
+                filter(STOR <= 60)
+
+pain_test <- pain %>%
+                filter(STOR > 60)
+```
+
+---
+
+## Model
+
+```{r, tidy=TRUE, tidy.opts=list(blank = TRUE, width.cutoff=80)}
+#Extract variable names
+
+str_c(names(pain_train), collapse = " + ")
+
+#Preliminary model with all variables except STOR and EARN
+mod <- glm(Target ~ STOR + EARN + K + SIZE + EMPL + total + P15 + P25 + P35 + P45 + P55 + INC + COMP + NCOMP + NREST + PRICE + CLI + PR, family = binomial, data = pain_train)
+```
+
+```{r, tidy = TRUE, tidy.opts=list(blank = TRUE, width.cutoff=80)}
+mod <- glm(Target ~ SIZE + EMPL + P25 + P35 + P55 + INC + COMP + NCOMP + PRICE + CLI, family = binomial, data = pain_train)
+
+
+summary(mod)
+```
+
+&nbsp;  
+
+```{r}
+tidy(mod) %>%
+  arrange(desc(p.value))
+```
+
+---
+
+## Final Model
+
+```{r}
+final_mod <- glm(Target ~ P35 + PRICE, family = binomial, data = pain_train)
+
+tidy(final_mod) %>%
+  arrange(desc(p.value))
+```
+
+```{r}
+glance(final_mod)
+```
+
+\pagebreak
+
+## Standardized Residual Plot
+
+```{r, dpi = 300}
+augment(mod) %>%
+  ggplot() +
+  geom_point(aes(x = .fitted, y = .std.resid))
+```
+
+
