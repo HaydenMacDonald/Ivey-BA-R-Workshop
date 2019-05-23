@@ -1,2 +1,2 @@
 # Ivey-BA-R-Workshop
-Files from Ivey Business Analytics R Workshop held on February 28, 2019
+Files from the Ivey Business Analytics R Workshop that I ran on February 28, 2019
